@@ -165,6 +165,64 @@ a {
 	color: var(--muted);
 }
 
+/* Resume card */
+
+.resume-card {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	max-width: 520px;
+	margin: 0 auto 24px;
+	padding: 14px 16px;
+	border: 1px solid var(--line);
+	border-radius: var(--radius-md);
+	background: var(--surface);
+	box-shadow: var(--shadow-md);
+}
+
+.resume-info {
+	display: grid;
+	gap: 1px;
+	min-width: 0;
+}
+
+.resume-label {
+	color: var(--muted);
+	font-size: 0.72rem;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	font-weight: 600;
+}
+
+.resume-info strong {
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.resume-meta {
+	color: var(--muted);
+	font-size: 0.82rem;
+}
+
+.resume-actions {
+	display: flex;
+	gap: 8px;
+	flex-shrink: 0;
+}
+
+@media (max-width: 520px) {
+	.resume-card {
+		flex-direction: column;
+		align-items: stretch;
+	}
+	.resume-actions {
+		justify-content: flex-end;
+	}
+}
+
 /* Layout */
 
 .layout {

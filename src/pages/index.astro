@@ -29,6 +29,21 @@ import Panel from "../components/Panel.astro";
 			</p>
 		</div>
 
+		<aside class="resume-card" id="resume-card" hidden>
+			<div class="resume-info">
+				<span class="resume-label">Continue last session</span>
+				<strong id="resume-group">Untitled</strong>
+				<span class="resume-meta" id="resume-meta">0 members · 0 transactions</span>
+			</div>
+			<div class="resume-actions">
+				<button class="btn secondary small" id="resume-dismiss" type="button">Start fresh</button>
+				<button class="btn small" id="resume-confirm" type="button">
+					Resume
+					<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h8M7.5 3.5L11 7l-3.5 3.5"/></svg>
+				</button>
+			</div>
+		</aside>
+
 		<main class="layout">
 			<div class="col col-group">
 				<Panel title="Group" titleId="group-title">
@@ -168,6 +183,76 @@ import Panel from "../components/Panel.astro";
 		);
 		const onboardingEls = document.querySelectorAll<HTMLElement>(".onboarding-only");
 		const workspaceEls = document.querySelectorAll<HTMLElement>(".workspace-only");
+		const resumeCard = $<HTMLElement>("#resume-card");
+		const resumeGroup = $("#resume-group");
+		const resumeMeta = $("#resume-meta");
+		const resumeConfirm = $<HTMLButtonElement>("#resume-confirm");
+		const resumeDismiss = $<HTMLButtonElement>("#resume-dismiss");
+
+		const STORAGE_KEY = "better-split:session:v1";
+
+		type Persisted = {
+			stage: Stage;
+			groupName: string;
+			members: Member[];
+			expenses: Expense[];
+		};
+
+		let sessionLoaded = false;
+
+		function persist() {
+			if (
+				!state.groupName &&
+				state.members.length === 0 &&
+				state.expenses.length === 0
+			) {
+				try { localStorage.removeItem(STORAGE_KEY); } catch {}
+				return;
+			}
+			try {
+				const data: Persisted = {
+					stage: state.stage,
+					groupName: state.groupName,
+					members: state.members,
+					expenses: state.expenses,
+				};
+				localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+			} catch {}
+		}
+
+		function readSavedSession(): Persisted | null {
+			try {
+				const raw = localStorage.getItem(STORAGE_KEY);
+				if (!raw) return null;
+				const data = JSON.parse(raw) as Partial<Persisted> | null;
+				if (
+					!data ||
+					typeof data.groupName !== "string" ||
+					!Array.isArray(data.members) ||
+					!Array.isArray(data.expenses)
+				) {
+					return null;
+				}
+				const stage: Stage = data.stage === "workspace" ? "workspace" : "onboarding";
+				return {
+					stage,
+					groupName: data.groupName,
+					members: data.members as Member[],
+					expenses: data.expenses as Expense[],
+				};
+			} catch {
+				return null;
+			}
+		}
+
+		function hydrate(saved: Persisted) {
+			state.groupName = saved.groupName;
+			state.members = saved.members;
+			state.expenses = saved.expenses;
+			groupNameInput.value = saved.groupName;
+			selectedSplitIds = new Set(saved.members.map((m) => m.id));
+			payerRows = [createPayerRow(saved.members[0]?.id || "")];
+		}
 
 		function createPayerRow(memberId = "", amount = ""): PayerDraft {
 			return { id: createId(), memberId, amount };
@@ -496,6 +581,19 @@ import Panel from "../components/Panel.astro";
 			const balances = renderBalances();
 			renderSettlements(balances);
 			renderControls();
+			if (sessionLoaded) persist();
+		}
+
+		function showResumeCard(saved: Persisted) {
+			resumeGroup.textContent = saved.groupName || "Untitled group";
+			const m = saved.members.length;
+			const t = saved.expenses.length;
+			resumeMeta.textContent = `${m} member${m === 1 ? "" : "s"} · ${t} transaction${t === 1 ? "" : "s"}`;
+			resumeCard.hidden = false;
+		}
+
+		function hideResumeCard() {
+			resumeCard.hidden = true;
 		}
 
 		// Event wiring
@@ -597,8 +695,31 @@ import Panel from "../components/Panel.astro";
 			expenseDescription.value = "";
 			clearMessage(memberMessage);
 			clearMessage(expenseMessage);
+			hideResumeCard();
 			setStage("onboarding");
+			try { localStorage.removeItem(STORAGE_KEY); } catch {}
 			render();
+		});
+
+		resumeConfirm.addEventListener("click", () => {
+			const saved = readSavedSession();
+			if (!saved) {
+				hideResumeCard();
+				sessionLoaded = true;
+				return;
+			}
+			hydrate(saved);
+			hideResumeCard();
+			sessionLoaded = true;
+			setStage(saved.stage === "workspace" ? "workspace" : "onboarding");
+			render();
+		});
+
+		resumeDismiss.addEventListener("click", () => {
+			try { localStorage.removeItem(STORAGE_KEY); } catch {}
+			hideResumeCard();
+			sessionLoaded = true;
+			memberNameInput.focus();
 		});
 
 		expenseForm.addEventListener("submit", (event) => {
@@ -644,7 +765,20 @@ import Panel from "../components/Panel.astro";
 			render();
 		});
 
-		setStage("onboarding");
+		const saved = readSavedSession();
+		const hasSaved =
+			!!saved &&
+			(saved.groupName.length > 0 ||
+				saved.members.length > 0 ||
+				saved.expenses.length > 0);
+
+		if (hasSaved && saved) {
+			showResumeCard(saved);
+			setStage("onboarding");
+		} else {
+			sessionLoaded = true;
+			setStage("onboarding");
+		}
 		render();
 	</script>
 </Layout>
