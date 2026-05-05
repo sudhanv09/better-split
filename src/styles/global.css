@@ -324,20 +324,35 @@ select:focus {
 	gap: 6px;
 	min-height: 40px;
 	padding: 0 14px;
+	border: 1px solid transparent;
 	border-radius: var(--radius-sm);
 	background: var(--accent);
 	color: var(--accent-ink);
-	font-weight: 600;
+	font-weight: 500;
 	font-size: 0.9rem;
-	transition: transform 80ms ease, background 120ms ease, border-color 120ms ease;
+	letter-spacing: -0.005em;
+	box-shadow: 0 1px 2px rgba(17, 17, 17, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+	transition: transform 80ms ease, background 120ms ease, border-color 120ms ease,
+		box-shadow 120ms ease;
 }
 
 .btn:hover:not(:disabled) {
 	background: #000;
+	box-shadow: 0 2px 6px rgba(17, 17, 17, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .btn:active:not(:disabled) {
 	transform: translateY(1px);
+	box-shadow: 0 1px 2px rgba(17, 17, 17, 0.08);
+}
+
+.btn:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.18);
+}
+
+.btn.grow {
+	flex: 1;
 }
 
 .btn.small {
@@ -349,18 +364,25 @@ select:focus {
 .btn.secondary {
 	background: var(--surface);
 	color: var(--ink);
-	border: 1px solid var(--line);
+	border-color: var(--line);
+	box-shadow: 0 1px 2px rgba(17, 17, 17, 0.04);
 }
 
 .btn.secondary:hover:not(:disabled) {
 	background: var(--surface-2);
 	border-color: var(--line-strong);
+	box-shadow: 0 1px 2px rgba(17, 17, 17, 0.06);
+}
+
+.btn.secondary:focus-visible {
+	box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.12);
 }
 
 .btn.ghost {
 	background: transparent;
 	color: var(--muted);
 	border: 1px dashed var(--line-strong);
+	box-shadow: none;
 }
 
 .btn.ghost:hover:not(:disabled) {
@@ -371,6 +393,7 @@ select:focus {
 .btn.danger {
 	background: var(--bad-soft);
 	color: var(--bad);
+	box-shadow: 0 1px 2px rgba(179, 38, 30, 0.08);
 }
 
 .btn.danger:hover:not(:disabled) {
@@ -467,11 +490,12 @@ select:focus {
 	display: inline-flex;
 	align-items: center;
 	gap: 8px;
-	padding: 5px 12px 5px 6px;
+	padding: 4px 12px 4px 5px;
 	border-radius: 999px;
-	border: 1px solid var(--line);
+	border: 2px solid var(--line);
 	background: var(--surface);
 	font-size: 0.85rem;
+	font-weight: 500;
 	cursor: pointer;
 	transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 	user-select: none;
@@ -524,15 +548,24 @@ select:focus {
 /* Messages */
 
 .message {
-	display: none;
 	padding: 8px 12px;
 	border-radius: var(--radius-sm);
 	font-size: 0.85rem;
 	font-weight: 500;
+	opacity: 0;
+	max-height: 0;
+	padding-top: 0;
+	padding-bottom: 0;
+	overflow: hidden;
+	transition: opacity 180ms ease, max-height 220ms ease,
+		padding-top 220ms ease, padding-bottom 220ms ease;
 }
 
 .message.show {
-	display: block;
+	opacity: 1;
+	max-height: 80px;
+	padding-top: 8px;
+	padding-bottom: 8px;
 }
 
 .message.error {

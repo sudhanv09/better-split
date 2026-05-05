@@ -79,8 +79,11 @@ import Panel from "../components/Panel.astro";
 						</div>
 
 						<div class="form-actions">
-							<button class="btn" id="save-expense" type="submit">Add transaction</button>
 							<button class="btn secondary" id="select-all" type="button">Everyone</button>
+							<button class="btn grow" id="save-expense" type="submit">
+								Add transaction
+								<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h8M7.5 3.5L11 7l-3.5 3.5"/></svg>
+							</button>
 						</div>
 
 						<div class="message" id="expense-message" role="status"></div>
@@ -191,12 +194,25 @@ import Panel from "../components/Panel.astro";
 				.replaceAll("'", "&#039;");
 		}
 
+		const messageTimers = new WeakMap<Element, number>();
+
 		function showMessage(el: Element, text: string, type: "error" | "success") {
 			el.textContent = text;
 			el.className = `message show ${type}`;
+			const prev = messageTimers.get(el);
+			if (prev) clearTimeout(prev);
+			const ms = type === "error" ? 3500 : 2200;
+			const timer = window.setTimeout(() => {
+				el.className = "message";
+				messageTimers.delete(el);
+			}, ms);
+			messageTimers.set(el, timer);
 		}
 
 		function clearMessage(el: Element) {
+			const prev = messageTimers.get(el);
+			if (prev) clearTimeout(prev);
+			messageTimers.delete(el);
 			el.textContent = "";
 			el.className = "message";
 		}
