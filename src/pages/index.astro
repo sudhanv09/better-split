@@ -1,17 +1,597 @@
 ---
-
+import Layout from "../layouts/Layout.astro";
+import Panel from "../components/Panel.astro";
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+<Layout title="Better Split">
+	<div class="shell">
+		<div class="topbar">
+			<div class="brand">
+				<span class="brand-mark">B</span>
+				<span>better<span class="slash">/</span>split</span>
+			</div>
+			<div class="topbar-meta">
+				<span class="dot"></span>
+				<span>Local · nothing leaves this tab</span>
+			</div>
+		</div>
+
+		<header class="hero">
+			<div>
+				<h1>
+					Split a bill, <em>not friendships.</em>
+				</h1>
+				<p class="hero-sub">
+					Add who's in, log what was paid, and get the smallest set of payments
+					that settles everyone. No accounts. No app.
+				</p>
+			</div>
+			<div class="hero-summary">
+				<span class="hero-summary-label">Group</span>
+				<span class="hero-summary-value" id="group-heading">Untitled</span>
+				<span class="hero-summary-meta" id="group-meta">0 members · 0 transactions</span>
+			</div>
+		</header>
+
+		<main class="grid">
+			<div class="col">
+				<Panel title="Group" titleId="group-title" desc="Name the group and add everyone involved.">
+					<div class="field">
+						<label class="field-label" for="group-name">Group name</label>
+						<input id="group-name" type="text" placeholder="Weekend in Goa" autocomplete="off" />
+					</div>
+
+					<form class="inline-add" id="member-form">
+						<div class="field">
+							<label class="field-label" for="member-name">Add member</label>
+							<input id="member-name" type="text" placeholder="Aditi" autocomplete="off" />
+						</div>
+						<button class="btn" type="submit">Add</button>
+					</form>
+
+					<div class="members" id="member-list"></div>
+					<div class="message" id="member-message" role="status"></div>
+				</Panel>
+
+				<Panel title="Tally" titleId="balances-title" desc="Who's up, who's down.">
+					<div id="balances"></div>
+				</Panel>
+
+				<Panel title="Settle up" titleId="settle-title" desc="Fewest payments to clear all debts.">
+					<div id="settlements"></div>
+				</Panel>
+			</div>
+
+			<div class="col">
+				<Panel title="Add expense" titleId="expense-title" desc="Use multiple payer rows when several people chipped in.">
+					<form id="expense-form" style="display: grid; gap: 14px;">
+						<div class="field">
+							<label class="field-label" for="expense-description">Description</label>
+							<input id="expense-description" type="text" placeholder="Dinner, cab, groceries" autocomplete="off" />
+						</div>
+
+						<div class="field">
+							<span class="field-label">Who paid</span>
+							<div id="payer-rows" style="display: grid; gap: 8px;"></div>
+							<div class="row" style="margin-top: 4px;">
+								<button class="btn ghost" id="add-payer" type="button">+ Add payer</button>
+								<span class="total-pill">Paid <span id="paid-total">0.00</span></span>
+							</div>
+						</div>
+
+						<div class="field">
+							<span class="field-label">Split equally between</span>
+							<div class="split-options" id="split-options"></div>
+						</div>
+
+						<div class="form-actions">
+							<button class="btn" id="save-expense" type="submit">Add transaction</button>
+							<button class="btn secondary" id="select-all" type="button">Everyone</button>
+							<span class="grow"></span>
+							<button class="btn danger" id="reset-all" type="button">Reset</button>
+						</div>
+
+						<div class="message" id="expense-message" role="status"></div>
+					</form>
+				</Panel>
+
+				<Panel title="Transactions" titleId="transactions-title" count="0" desc="Most recent first.">
+					<div class="txn-list" id="transaction-list"></div>
+				</Panel>
+			</div>
+		</main>
+	</div>
+
+	<script>
+		import {
+			calculateBalances,
+			calculateSettlements,
+			createId,
+			formatMoney,
+			parseAmountCents,
+			initials,
+			avatarHue,
+			type Expense,
+			type Member,
+		} from "../lib/split";
+
+		type PayerDraft = { id: string; memberId: string; amount: string };
+
+		const state: { groupName: string; members: Member[]; expenses: Expense[] } = {
+			groupName: "",
+			members: [],
+			expenses: [],
+		};
+
+		let payerRows: PayerDraft[] = [createPayerRow()];
+		let selectedSplitIds = new Set<string>();
+
+		const $ = <T extends Element = HTMLElement>(s: string) =>
+			document.querySelector(s) as T;
+
+		const groupNameInput = $<HTMLInputElement>("#group-name");
+		const groupHeading = $("#group-heading");
+		const groupMeta = $("#group-meta");
+		const memberForm = $<HTMLFormElement>("#member-form");
+		const memberNameInput = $<HTMLInputElement>("#member-name");
+		const memberList = $("#member-list");
+		const memberMessage = $("#member-message");
+		const expenseForm = $<HTMLFormElement>("#expense-form");
+		const expenseDescription = $<HTMLInputElement>("#expense-description");
+		const payerRowsContainer = $("#payer-rows");
+		const splitOptions = $("#split-options");
+		const paidTotal = $("#paid-total");
+		const expenseMessage = $("#expense-message");
+		const transactionList = $("#transaction-list");
+		const balancesContainer = $("#balances");
+		const settlementsContainer = $("#settlements");
+		const addPayerButton = $<HTMLButtonElement>("#add-payer");
+		const selectAllButton = $<HTMLButtonElement>("#select-all");
+		const resetAllButton = $<HTMLButtonElement>("#reset-all");
+		const saveExpenseButton = $<HTMLButtonElement>("#save-expense");
+		const txnCountEl = document.querySelector<HTMLElement>(
+			"#transactions-title [data-panel-count]",
+		);
+
+		function createPayerRow(memberId = "", amount = ""): PayerDraft {
+			return { id: createId(), memberId, amount };
+		}
+
+		function defaultPayerId() {
+			return state.members[0]?.id || "";
+		}
+
+		function getMember(id: string) {
+			return state.members.find((m) => m.id === id);
+		}
+
+		function memberName(id: string) {
+			return getMember(id)?.name || "Unknown";
+		}
+
+		function escapeHtml(value: string) {
+			return value
+				.replaceAll("&", "&amp;")
+				.replaceAll("<", "&lt;")
+				.replaceAll(">", "&gt;")
+				.replaceAll('"', "&quot;")
+				.replaceAll("'", "&#039;");
+			}
+
+		function showMessage(el: Element, text: string, type: "error" | "success") {
+			el.textContent = text;
+			el.className = `message show ${type}`;
+		}
+
+		function clearMessage(el: Element) {
+			el.textContent = "";
+			el.className = "message";
+		}
+
+		function avatarStyle(id: string) {
+			return `background: hsl(${avatarHue(id)} 65% 45%);`;
+		}
+
+		function avatarHtml(member: Member, lg = false) {
+			return `<span class="avatar${lg ? " lg" : ""}" style="${avatarStyle(member.id)}" aria-hidden="true">${escapeHtml(initials(member.name))}</span>`;
+		}
+
+		function ensureDraftDefaults() {
+			const ids = new Set(state.members.map((m) => m.id));
+			selectedSplitIds = new Set([...selectedSplitIds].filter((id) => ids.has(id)));
+			if (selectedSplitIds.size === 0) {
+				selectedSplitIds = new Set(state.members.map((m) => m.id));
+			}
+			payerRows = payerRows.map((row) =>
+				ids.has(row.memberId) ? row : { ...row, memberId: defaultPayerId() },
+			);
+		}
+
+		function syncPayerFromEvent(event: Event) {
+			const field = (event.target as Element)?.closest<HTMLElement>("[data-payer-row]");
+			if (!field) return;
+			const row = payerRows.find((r) => r.id === field.dataset.payerRow);
+			if (!row) return;
+			const input = field as HTMLInputElement | HTMLSelectElement;
+			if (input.name === "payer") row.memberId = input.value;
+			if (input.name === "amount") row.amount = input.value;
+			renderPaidTotal();
+		}
+
+		function collectPayers() {
+			const totals = new Map<string, number>();
+			for (const row of payerRows) {
+				const hasInput = row.memberId || row.amount.trim();
+				if (!hasInput) continue;
+				if (!row.memberId) return { error: "Choose who paid for each payer row." };
+				const cents = parseAmountCents(row.amount);
+				if (!cents) return { error: "Enter a positive amount for each payer row." };
+				totals.set(row.memberId, (totals.get(row.memberId) || 0) + cents);
+			}
+			const items = [...totals.entries()].map(([memberId, amountCents]) => ({
+				memberId,
+				amountCents,
+			}));
+			if (items.length === 0) return { error: "Add at least one payer amount." };
+			return { items };
+		}
+
+		function draftTotalCents() {
+			return payerRows.reduce(
+				(t, r) => t + (parseAmountCents(r.amount) || 0),
+				0,
+			);
+		}
+
+		// Render functions
+
+		function renderHero() {
+			groupHeading.textContent = state.groupName || "Untitled";
+			const m = state.members.length;
+			const t = state.expenses.length;
+			groupMeta.textContent = `${m} member${m === 1 ? "" : "s"} · ${t} transaction${t === 1 ? "" : "s"}`;
+		}
+
+		function renderMembers() {
+			if (state.members.length === 0) {
+				memberList.innerHTML = '<div class="empty">No one in the group yet.</div>';
+				return;
+			}
+			memberList.innerHTML = state.members
+				.map(
+					(m) => `
+					<div class="member">
+						${avatarHtml(m)}
+						<span class="member-name">${escapeHtml(m.name)}</span>
+						<button class="icon-btn" type="button" data-remove-member="${m.id}" aria-label="Remove ${escapeHtml(m.name)}" title="Remove">
+							<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 3l8 8M11 3l-8 8"/></svg>
+						</button>
+					</div>
+				`,
+				)
+				.join("");
+		}
+
+		function renderPayerRows() {
+			if (state.members.length === 0) {
+				payerRowsContainer.innerHTML = '<div class="empty">Add members to record an expense.</div>';
+				return;
+			}
+			payerRowsContainer.innerHTML = payerRows
+				.map((row) => {
+					const options = state.members
+						.map(
+							(m) =>
+								`<option value="${m.id}" ${m.id === row.memberId ? "selected" : ""}>${escapeHtml(m.name)}</option>`,
+						)
+						.join("");
+					return `
+						<div class="payer-row">
+							<select name="payer" data-payer-row="${row.id}" aria-label="Payer">${options}</select>
+							<input name="amount" data-payer-row="${row.id}" type="number" min="0" step="0.01" placeholder="0.00" value="${escapeHtml(row.amount)}" aria-label="Amount" inputmode="decimal" />
+							<button class="icon-btn" type="button" data-remove-payer-row="${row.id}" aria-label="Remove payer row" title="Remove">
+								<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 3l8 8M11 3l-8 8"/></svg>
+							</button>
+						</div>
+					`;
+				})
+				.join("");
+		}
+
+		function renderSplitOptions() {
+			if (state.members.length === 0) {
+				splitOptions.innerHTML = '<div class="empty">Add members to choose who shares this.</div>';
+				return;
+			}
+			splitOptions.innerHTML = state.members
+				.map((m) => {
+					const checked = selectedSplitIds.has(m.id) ? "checked" : "";
+					return `
+						<label class="chip">
+							<input type="checkbox" data-split-member="${m.id}" ${checked} />
+							${avatarHtml(m)}
+							${escapeHtml(m.name)}
+						</label>
+					`;
+				})
+				.join("");
+		}
+
+		function renderPaidTotal() {
+			paidTotal.textContent = formatMoney(draftTotalCents());
+		}
+
+		function renderTransactions() {
+			if (txnCountEl) txnCountEl.textContent = String(state.expenses.length);
+			if (state.expenses.length === 0) {
+				transactionList.innerHTML = '<div class="empty">No transactions yet.</div>';
+				return;
+			}
+			transactionList.innerHTML = state.expenses
+				.map((expense) => {
+					const payers = expense.payers
+						.map(
+							(p) =>
+								`<span><strong>${escapeHtml(memberName(p.memberId))}</strong> paid ${formatMoney(p.amountCents)}</span>`,
+						)
+						.join('<span class="sep">·</span>');
+					const split = expense.splitMemberIds
+						.map((id) => escapeHtml(memberName(id)))
+						.join(", ");
+					return `
+						<article class="txn">
+							<h3 class="txn-title">${escapeHtml(expense.description)}</h3>
+							<span class="txn-amount">${formatMoney(expense.totalCents)}</span>
+							<div class="txn-meta">
+								${payers}
+								<span class="sep">·</span>
+								<span>split ${escapeHtml(split)}</span>
+							</div>
+							<div class="txn-actions">
+								<button class="btn secondary" type="button" data-delete-expense="${expense.id}">Delete</button>
+							</div>
+						</article>
+					`;
+				})
+				.join("");
+		}
+
+		function renderBalances() {
+			const balances = calculateBalances(state.members, state.expenses);
+			if (state.members.length === 0) {
+				balancesContainer.innerHTML = '<div class="empty">Balances appear once members are added.</div>';
+				return balances;
+			}
+			const max = Math.max(1, ...balances.map((b) => Math.abs(b.net)));
+			balancesContainer.innerHTML = `
+				<div class="balance-list">
+					${balances
+						.map((b) => {
+							const member = getMember(b.memberId);
+							if (!member) return "";
+							const cls = b.net > 0 ? "positive" : b.net < 0 ? "negative" : "zero";
+							const sign = b.net > 0 ? "+" : b.net < 0 ? "−" : "";
+							const pct = Math.round((Math.abs(b.net) / max) * 50);
+							const fillStyle =
+								b.net > 0
+									? `width: ${pct}%;`
+									: b.net < 0
+										? `width: ${pct}%;`
+										: "width: 0;";
+							return `
+								<div class="balance-row">
+									<div class="balance-name">
+										${avatarHtml(member)}
+										<span>${escapeHtml(member.name)}</span>
+									</div>
+									<div class="balance-bar" aria-hidden="true">
+										<div class="center"></div>
+										${b.net !== 0 ? `<div class="fill ${cls}" style="${fillStyle}"></div>` : ""}
+									</div>
+									<div class="balance-net ${cls}">${sign}${formatMoney(Math.abs(b.net))}</div>
+								</div>
+							`;
+						})
+						.join("")}
+				</div>
+			`;
+			return balances;
+		}
+
+		function renderSettlements(balances: ReturnType<typeof calculateBalances>) {
+			if (state.expenses.length === 0) {
+				settlementsContainer.innerHTML = '<div class="empty">Add transactions to settle.</div>';
+				return;
+			}
+			const settlements = calculateSettlements(balances);
+			if (settlements.length === 0) {
+				settlementsContainer.innerHTML = '<div class="empty">All settled — nobody owes anyone.</div>';
+				return;
+			}
+			settlementsContainer.innerHTML = `
+				<div class="settlements">
+					${settlements
+						.map((s) => {
+							const from = getMember(s.from);
+							const to = getMember(s.to);
+							if (!from || !to) return "";
+							return `
+								<div class="settle">
+									<div class="who">
+										${avatarHtml(from)}
+										<span class="name">${escapeHtml(from.name)}</span>
+									</div>
+									<span class="arrow" aria-hidden="true">→</span>
+									<div class="who">
+										${avatarHtml(to)}
+										<span class="name">${escapeHtml(to.name)}</span>
+									</div>
+									<span class="amount">${formatMoney(s.amount)}</span>
+								</div>
+							`;
+						})
+						.join("")}
+				</div>
+			`;
+		}
+
+		function renderControls() {
+			const enough = state.members.length >= 2;
+			addPayerButton.disabled = state.members.length === 0;
+			selectAllButton.disabled = state.members.length === 0;
+			saveExpenseButton.disabled = !enough;
+		}
+
+		function render() {
+			renderHero();
+			renderMembers();
+			renderPayerRows();
+			renderSplitOptions();
+			renderPaidTotal();
+			renderTransactions();
+			const balances = renderBalances();
+			renderSettlements(balances);
+			renderControls();
+		}
+
+		// Event wiring
+
+		groupNameInput.addEventListener("input", () => {
+			state.groupName = groupNameInput.value.trim();
+			renderHero();
+		});
+
+		memberForm.addEventListener("submit", (event) => {
+			event.preventDefault();
+			const name = memberNameInput.value.trim();
+			if (!name) {
+				showMessage(memberMessage, "Enter a member name.", "error");
+				return;
+			}
+			if (state.members.some((m) => m.name.toLowerCase() === name.toLowerCase())) {
+				showMessage(memberMessage, "That member already exists.", "error");
+				return;
+			}
+			const member: Member = { id: createId(), name };
+			state.members.push(member);
+			selectedSplitIds.add(member.id);
+			memberNameInput.value = "";
+			showMessage(memberMessage, `${name} added.`, "success");
+			ensureDraftDefaults();
+			render();
+		});
+
+		memberList.addEventListener("click", (event) => {
+			const button = (event.target as Element)?.closest<HTMLElement>("[data-remove-member]");
+			if (!button) return;
+			const memberId = button.dataset.removeMember!;
+			const member = getMember(memberId);
+			if (!member) return;
+			const used = state.expenses.some(
+				(e) =>
+					e.splitMemberIds.includes(memberId) ||
+					e.payers.some((p) => p.memberId === memberId),
+			);
+			if (used) {
+				showMessage(memberMessage, "Delete that member's transactions first.", "error");
+				return;
+			}
+			state.members = state.members.filter((m) => m.id !== memberId);
+			selectedSplitIds.delete(memberId);
+			payerRows = payerRows.map((r) =>
+				r.memberId === memberId ? { ...r, memberId: "" } : r,
+			);
+			showMessage(memberMessage, `${member.name} removed.`, "success");
+			ensureDraftDefaults();
+			render();
+		});
+
+		payerRowsContainer.addEventListener("input", syncPayerFromEvent);
+		payerRowsContainer.addEventListener("change", syncPayerFromEvent);
+
+		payerRowsContainer.addEventListener("click", (event) => {
+			const button = (event.target as Element)?.closest<HTMLElement>("[data-remove-payer-row]");
+			if (!button) return;
+			payerRows = payerRows.filter((r) => r.id !== button.dataset.removePayerRow);
+			if (payerRows.length === 0) payerRows = [createPayerRow()];
+			renderPayerRows();
+			renderPaidTotal();
+		});
+
+		addPayerButton.addEventListener("click", () => {
+			payerRows.push(createPayerRow(defaultPayerId()));
+			renderPayerRows();
+			renderPaidTotal();
+		});
+
+		splitOptions.addEventListener("change", (event) => {
+			const cb = (event.target as Element)?.closest<HTMLInputElement>("[data-split-member]");
+			if (!cb) return;
+			if (cb.checked) selectedSplitIds.add(cb.dataset.splitMember!);
+			else selectedSplitIds.delete(cb.dataset.splitMember!);
+		});
+
+		selectAllButton.addEventListener("click", () => {
+			selectedSplitIds = new Set(state.members.map((m) => m.id));
+			renderSplitOptions();
+		});
+
+		resetAllButton.addEventListener("click", () => {
+			state.groupName = "";
+			state.members = [];
+			state.expenses = [];
+			payerRows = [createPayerRow()];
+			selectedSplitIds = new Set();
+			groupNameInput.value = "";
+			expenseDescription.value = "";
+			clearMessage(memberMessage);
+			clearMessage(expenseMessage);
+			render();
+		});
+
+		expenseForm.addEventListener("submit", (event) => {
+			event.preventDefault();
+			if (state.members.length < 2) {
+				showMessage(expenseMessage, "Add at least two members first.", "error");
+				return;
+			}
+			const payers = collectPayers();
+			if ("error" in payers) {
+				showMessage(expenseMessage, payers.error, "error");
+				return;
+			}
+			const splitMemberIds = state.members
+				.map((m) => m.id)
+				.filter((id) => selectedSplitIds.has(id));
+			if (splitMemberIds.length === 0) {
+				showMessage(expenseMessage, "Choose at least one person to split with.", "error");
+				return;
+			}
+			const totalCents = payers.items.reduce((t, p) => t + p.amountCents, 0);
+			state.expenses.unshift({
+				id: createId(),
+				description: expenseDescription.value.trim() || "Untitled expense",
+				payers: payers.items,
+				splitMemberIds,
+				totalCents,
+				createdAt: new Date().toISOString(),
+			});
+			expenseDescription.value = "";
+			payerRows = [createPayerRow(defaultPayerId())];
+			selectedSplitIds = new Set(state.members.map((m) => m.id));
+			showMessage(expenseMessage, "Transaction added.", "success");
+			render();
+		});
+
+		transactionList.addEventListener("click", (event) => {
+			const button = (event.target as Element)?.closest<HTMLElement>("[data-delete-expense]");
+			if (!button) return;
+			state.expenses = state.expenses.filter(
+				(e) => e.id !== button.dataset.deleteExpense,
+			);
+			render();
+		});
+
+		render();
+	</script>
+</Layout>

@@ -1,0 +1,23 @@
+---
+interface Props {
+	title: string;
+	desc?: string;
+	count?: string;
+	titleId?: string;
+}
+
+const { title, desc, count, titleId } = Astro.props;
+---
+
+<section class="panel" aria-labelledby={titleId}>
+	<div class="panel-header">
+		<h2 class="panel-title" id={titleId}>
+			{title}
+			{count !== undefined && <span class="count" data-panel-count>{count}</span>}
+		</h2>
+	</div>
+	{desc && <p class="panel-desc" style="padding: 0 18px;">{desc}</p>}
+	<div class="panel-body">
+		<slot />
+	</div>
+</section>
