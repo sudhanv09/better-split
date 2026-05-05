@@ -5,37 +5,33 @@ import Panel from "../components/Panel.astro";
 
 <Layout title="Better Split">
 	<div class="shell">
-		<div class="topbar">
+		<header class="topbar">
 			<div class="brand">
 				<span class="brand-mark">B</span>
 				<span>better<span class="slash">/</span>split</span>
 			</div>
-			<div class="topbar-meta">
+			<div class="topbar-meta onboarding-only">
 				<span class="dot"></span>
-				<span>Local · nothing leaves this tab</span>
+				<span>Nothing leaves this tab</span>
 			</div>
-		</div>
-
-		<header class="hero">
-			<div>
-				<h1>
-					Split a bill, <em>not friendships.</em>
-				</h1>
-				<p class="hero-sub">
-					Add who's in, log what was paid, and get the smallest set of payments
-					that settles everyone. No accounts. No app.
-				</p>
-			</div>
-			<div class="hero-summary">
-				<span class="hero-summary-label">Group</span>
-				<span class="hero-summary-value" id="group-heading">Untitled</span>
-				<span class="hero-summary-meta" id="group-meta">0 members · 0 transactions</span>
+			<div class="topbar-meta workspace-only" hidden>
+				<span class="topbar-group" id="topbar-group">Untitled</span>
+				<span class="topbar-sep">·</span>
+				<span id="topbar-meta-counts">0 members · 0 transactions</span>
+				<button class="btn ghost small" id="reset-all" type="button">Reset</button>
 			</div>
 		</header>
 
-		<main class="grid">
-			<div class="col">
-				<Panel title="Group" titleId="group-title" desc="Name the group and add everyone involved.">
+		<div class="welcome onboarding-only">
+			<h1>Set up your group.</h1>
+			<p>
+				Name it and add everyone involved. You can edit anything later.
+			</p>
+		</div>
+
+		<main class="layout">
+			<div class="col col-group">
+				<Panel title="Group" titleId="group-title">
 					<div class="field">
 						<label class="field-label" for="group-name">Group name</label>
 						<input id="group-name" type="text" placeholder="Weekend in Goa" autocomplete="off" />
@@ -53,17 +49,15 @@ import Panel from "../components/Panel.astro";
 					<div class="message" id="member-message" role="status"></div>
 				</Panel>
 
-				<Panel title="Tally" titleId="balances-title" desc="Who's up, who's down.">
-					<div id="balances"></div>
-				</Panel>
-
-				<Panel title="Settle up" titleId="settle-title" desc="Fewest payments to clear all debts.">
-					<div id="settlements"></div>
-				</Panel>
+				<button class="btn continue-btn onboarding-only" id="continue-btn" type="button" disabled>
+					Continue
+					<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h8M7.5 3.5L11 7l-3.5 3.5"/></svg>
+				</button>
+				<p class="continue-hint onboarding-only" id="continue-hint">Enter a group name and at least two members.</p>
 			</div>
 
-			<div class="col">
-				<Panel title="Add expense" titleId="expense-title" desc="Use multiple payer rows when several people chipped in.">
+			<div class="col col-form workspace-only" hidden>
+				<Panel title="Add expense" titleId="expense-title">
 					<form id="expense-form" style="display: grid; gap: 14px;">
 						<div class="field">
 							<label class="field-label" for="expense-description">Description</label>
@@ -87,15 +81,23 @@ import Panel from "../components/Panel.astro";
 						<div class="form-actions">
 							<button class="btn" id="save-expense" type="submit">Add transaction</button>
 							<button class="btn secondary" id="select-all" type="button">Everyone</button>
-							<span class="grow"></span>
-							<button class="btn danger" id="reset-all" type="button">Reset</button>
 						</div>
 
 						<div class="message" id="expense-message" role="status"></div>
 					</form>
 				</Panel>
+			</div>
 
-				<Panel title="Transactions" titleId="transactions-title" count="0" desc="Most recent first.">
+			<div class="col col-summary workspace-only" hidden>
+				<Panel title="Per-person share" titleId="balances-title">
+					<div id="balances"></div>
+				</Panel>
+
+				<Panel title="Settle up" titleId="settle-title">
+					<div id="settlements"></div>
+				</Panel>
+
+				<Panel title="Transactions" titleId="transactions-title" count="0">
 					<div class="txn-list" id="transaction-list"></div>
 				</Panel>
 			</div>
@@ -116,8 +118,15 @@ import Panel from "../components/Panel.astro";
 		} from "../lib/split";
 
 		type PayerDraft = { id: string; memberId: string; amount: string };
+		type Stage = "onboarding" | "workspace";
 
-		const state: { groupName: string; members: Member[]; expenses: Expense[] } = {
+		const state: {
+			stage: Stage;
+			groupName: string;
+			members: Member[];
+			expenses: Expense[];
+		} = {
+			stage: "onboarding",
 			groupName: "",
 			members: [],
 			expenses: [],
@@ -130,12 +139,14 @@ import Panel from "../components/Panel.astro";
 			document.querySelector(s) as T;
 
 		const groupNameInput = $<HTMLInputElement>("#group-name");
-		const groupHeading = $("#group-heading");
-		const groupMeta = $("#group-meta");
+		const topbarGroup = $("#topbar-group");
+		const topbarCounts = $("#topbar-meta-counts");
 		const memberForm = $<HTMLFormElement>("#member-form");
 		const memberNameInput = $<HTMLInputElement>("#member-name");
 		const memberList = $("#member-list");
 		const memberMessage = $("#member-message");
+		const continueBtn = $<HTMLButtonElement>("#continue-btn");
+		const continueHint = $("#continue-hint");
 		const expenseForm = $<HTMLFormElement>("#expense-form");
 		const expenseDescription = $<HTMLInputElement>("#expense-description");
 		const payerRowsContainer = $("#payer-rows");
@@ -152,6 +163,8 @@ import Panel from "../components/Panel.astro";
 		const txnCountEl = document.querySelector<HTMLElement>(
 			"#transactions-title [data-panel-count]",
 		);
+		const onboardingEls = document.querySelectorAll<HTMLElement>(".onboarding-only");
+		const workspaceEls = document.querySelectorAll<HTMLElement>(".workspace-only");
 
 		function createPayerRow(memberId = "", amount = ""): PayerDraft {
 			return { id: createId(), memberId, amount };
@@ -176,7 +189,7 @@ import Panel from "../components/Panel.astro";
 				.replaceAll(">", "&gt;")
 				.replaceAll('"', "&quot;")
 				.replaceAll("'", "&#039;");
-			}
+		}
 
 		function showMessage(el: Element, text: string, type: "error" | "success") {
 			el.textContent = text;
@@ -192,8 +205,8 @@ import Panel from "../components/Panel.astro";
 			return `background: hsl(${avatarHue(id)} 65% 45%);`;
 		}
 
-		function avatarHtml(member: Member, lg = false) {
-			return `<span class="avatar${lg ? " lg" : ""}" style="${avatarStyle(member.id)}" aria-hidden="true">${escapeHtml(initials(member.name))}</span>`;
+		function avatarHtml(member: Member) {
+			return `<span class="avatar" style="${avatarStyle(member.id)}" aria-hidden="true">${escapeHtml(initials(member.name))}</span>`;
 		}
 
 		function ensureDraftDefaults() {
@@ -243,13 +256,32 @@ import Panel from "../components/Panel.astro";
 			);
 		}
 
+		function setStage(next: Stage) {
+			state.stage = next;
+			document.body.dataset.stage = next;
+			for (const el of onboardingEls) el.hidden = next !== "onboarding";
+			for (const el of workspaceEls) el.hidden = next !== "workspace";
+		}
+
 		// Render functions
 
-		function renderHero() {
-			groupHeading.textContent = state.groupName || "Untitled";
+		function renderTopbar() {
+			topbarGroup.textContent = state.groupName || "Untitled";
 			const m = state.members.length;
 			const t = state.expenses.length;
-			groupMeta.textContent = `${m} member${m === 1 ? "" : "s"} · ${t} transaction${t === 1 ? "" : "s"}`;
+			topbarCounts.textContent = `${m} member${m === 1 ? "" : "s"} · ${t} transaction${t === 1 ? "" : "s"}`;
+		}
+
+		function renderContinue() {
+			const ready = state.groupName.length > 0 && state.members.length >= 2;
+			continueBtn.disabled = !ready;
+			if (state.members.length < 2) {
+				continueHint.textContent = "Add at least two members to split with.";
+			} else if (state.groupName.length === 0) {
+				continueHint.textContent = "Give the group a name.";
+			} else {
+				continueHint.textContent = "Ready when you are.";
+			}
 		}
 
 		function renderMembers() {
@@ -348,7 +380,7 @@ import Panel from "../components/Panel.astro";
 								<span>split ${escapeHtml(split)}</span>
 							</div>
 							<div class="txn-actions">
-								<button class="btn secondary" type="button" data-delete-expense="${expense.id}">Delete</button>
+								<button class="btn secondary small" type="button" data-delete-expense="${expense.id}">Delete</button>
 							</div>
 						</article>
 					`;
@@ -372,12 +404,7 @@ import Panel from "../components/Panel.astro";
 							const cls = b.net > 0 ? "positive" : b.net < 0 ? "negative" : "zero";
 							const sign = b.net > 0 ? "+" : b.net < 0 ? "−" : "";
 							const pct = Math.round((Math.abs(b.net) / max) * 50);
-							const fillStyle =
-								b.net > 0
-									? `width: ${pct}%;`
-									: b.net < 0
-										? `width: ${pct}%;`
-										: "width: 0;";
+							const fillStyle = b.net !== 0 ? `width: ${pct}%;` : "width: 0;";
 							return `
 								<div class="balance-row">
 									<div class="balance-name">
@@ -443,7 +470,8 @@ import Panel from "../components/Panel.astro";
 		}
 
 		function render() {
-			renderHero();
+			renderTopbar();
+			renderContinue();
 			renderMembers();
 			renderPayerRows();
 			renderSplitOptions();
@@ -458,7 +486,8 @@ import Panel from "../components/Panel.astro";
 
 		groupNameInput.addEventListener("input", () => {
 			state.groupName = groupNameInput.value.trim();
-			renderHero();
+			renderTopbar();
+			renderContinue();
 		});
 
 		memberForm.addEventListener("submit", (event) => {
@@ -476,6 +505,7 @@ import Panel from "../components/Panel.astro";
 			state.members.push(member);
 			selectedSplitIds.add(member.id);
 			memberNameInput.value = "";
+			memberNameInput.focus();
 			showMessage(memberMessage, `${name} added.`, "success");
 			ensureDraftDefaults();
 			render();
@@ -504,6 +534,11 @@ import Panel from "../components/Panel.astro";
 			showMessage(memberMessage, `${member.name} removed.`, "success");
 			ensureDraftDefaults();
 			render();
+		});
+
+		continueBtn.addEventListener("click", () => {
+			if (continueBtn.disabled) return;
+			setStage("workspace");
 		});
 
 		payerRowsContainer.addEventListener("input", syncPayerFromEvent);
@@ -546,6 +581,7 @@ import Panel from "../components/Panel.astro";
 			expenseDescription.value = "";
 			clearMessage(memberMessage);
 			clearMessage(expenseMessage);
+			setStage("onboarding");
 			render();
 		});
 
@@ -592,6 +628,7 @@ import Panel from "../components/Panel.astro";
 			render();
 		});
 
+		setStage("onboarding");
 		render();
 	</script>
 </Layout>
