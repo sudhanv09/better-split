@@ -1,28 +1,61 @@
-:root {
+:root,
+[data-theme="light"] {
 	color-scheme: light;
-	--bg: #f5f4ef;
-	--bg-pattern: #ecebe3;
-	--surface: #ffffff;
-	--surface-2: #fafaf7;
-	--ink: #111111;
-	--ink-2: #2b2b2b;
-	--muted: #6b6b66;
-	--line: #e6e3da;
-	--line-strong: #cfcabd;
-	--accent: #1f1f1f;
-	--accent-ink: #ffffff;
-	--good: #047857;
-	--good-soft: #d6f0e6;
-	--bad: #b3261e;
-	--bad-soft: #fbe4e1;
-	--warn-soft: #fff1c8;
+	--bg: oklch(96.5% 0.005 85);
+	--bg-pattern: oklch(93.5% 0.008 85);
+	--surface: oklch(100% 0 0);
+	--surface-2: oklch(98.5% 0.003 85);
+	--ink: oklch(20% 0 0);
+	--ink-2: oklch(30% 0 0);
+	--muted: oklch(50% 0.005 85);
+	--line: oklch(91% 0.008 85);
+	--line-strong: oklch(82% 0.015 85);
+	--accent: oklch(25% 0 0);
+	--accent-ink: oklch(100% 0 0);
+	--accent-hover: oklch(0% 0 0);
+	--good: oklch(52% 0.13 160);
+	--good-soft: oklch(93% 0.04 160);
+	--bad: oklch(50% 0.18 27);
+	--bad-soft: oklch(93% 0.025 25);
+	--bad-soft-hover: oklch(87% 0.04 25);
+	--warn-soft: oklch(96% 0.06 95);
+	--warn-ink: oklch(42% 0.09 75);
+	--focus-ring: oklch(20% 0 0 / 0.18);
+	--focus-ring-soft: oklch(20% 0 0 / 0.08);
 	--radius-lg: 18px;
 	--radius-md: 12px;
 	--radius-sm: 8px;
-	--shadow-sm: 0 1px 0 rgba(17, 17, 17, 0.04);
-	--shadow-md: 0 1px 2px rgba(17, 17, 17, 0.04), 0 8px 24px rgba(17, 17, 17, 0.06);
+	--shadow-sm: 0 1px 0 oklch(20% 0 0 / 0.04);
+	--shadow-md: 0 1px 2px oklch(20% 0 0 / 0.04), 0 8px 24px oklch(20% 0 0 / 0.06);
 	font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
 		"Segoe UI", Inter, sans-serif;
+}
+
+[data-theme="dark"] {
+	color-scheme: dark;
+	--bg: oklch(15% 0.005 250);
+	--bg-pattern: oklch(22% 0.005 250);
+	--surface: oklch(20% 0.005 250);
+	--surface-2: oklch(24% 0.005 250);
+	--ink: oklch(95% 0.005 85);
+	--ink-2: oklch(86% 0.008 85);
+	--muted: oklch(60% 0.005 85);
+	--line: oklch(28% 0.005 250);
+	--line-strong: oklch(36% 0.008 250);
+	--accent: oklch(95% 0.005 85);
+	--accent-ink: oklch(20% 0 0);
+	--accent-hover: oklch(100% 0 0);
+	--good: oklch(78% 0.16 158);
+	--good-soft: oklch(30% 0.06 160);
+	--bad: oklch(72% 0.18 25);
+	--bad-soft: oklch(28% 0.06 25);
+	--bad-soft-hover: oklch(32% 0.07 25);
+	--warn-soft: oklch(30% 0.05 85);
+	--warn-ink: oklch(86% 0.13 90);
+	--focus-ring: oklch(95% 0.005 85 / 0.28);
+	--focus-ring-soft: oklch(95% 0.005 85 / 0.12);
+	--shadow-sm: 0 1px 0 oklch(0% 0 0 / 0.3);
+	--shadow-md: 0 1px 2px oklch(0% 0 0 / 0.4), 0 8px 24px oklch(0% 0 0 / 0.5);
 }
 
 * {
@@ -110,7 +143,7 @@ a {
 	justify-content: center;
 	border-radius: 8px;
 	background: var(--ink);
-	color: white;
+	color: var(--bg);
 	font-weight: 800;
 	font-size: 0.85rem;
 }
@@ -356,7 +389,7 @@ input[type="text"]:focus,
 input[type="number"]:focus,
 select:focus {
 	border-color: var(--ink);
-	box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.08);
+	box-shadow: 0 0 0 3px var(--focus-ring-soft);
 }
 
 .inline-add {
@@ -389,24 +422,24 @@ select:focus {
 	font-weight: 500;
 	font-size: 0.9rem;
 	letter-spacing: -0.005em;
-	box-shadow: 0 1px 2px rgba(17, 17, 17, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+	box-shadow: 0 1px 2px oklch(20% 0 0 / 0.08), inset 0 1px 0 oklch(100% 0 0 / 0.06);
 	transition: transform 80ms ease, background 120ms ease, border-color 120ms ease,
 		box-shadow 120ms ease;
 }
 
 .btn:hover:not(:disabled) {
-	background: #000;
-	box-shadow: 0 2px 6px rgba(17, 17, 17, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+	background: var(--accent-hover);
+	box-shadow: 0 2px 6px oklch(20% 0 0 / 0.18), inset 0 1px 0 oklch(100% 0 0 / 0.08);
 }
 
 .btn:active:not(:disabled) {
 	transform: translateY(1px);
-	box-shadow: 0 1px 2px rgba(17, 17, 17, 0.08);
+	box-shadow: 0 1px 2px oklch(20% 0 0 / 0.08);
 }
 
 .btn:focus-visible {
 	outline: none;
-	box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.18);
+	box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .btn.grow {
@@ -423,17 +456,17 @@ select:focus {
 	background: var(--surface);
 	color: var(--ink);
 	border-color: var(--line);
-	box-shadow: 0 1px 2px rgba(17, 17, 17, 0.04);
+	box-shadow: 0 1px 2px oklch(20% 0 0 / 0.04);
 }
 
 .btn.secondary:hover:not(:disabled) {
 	background: var(--surface-2);
 	border-color: var(--line-strong);
-	box-shadow: 0 1px 2px rgba(17, 17, 17, 0.06);
+	box-shadow: 0 1px 2px oklch(20% 0 0 / 0.06);
 }
 
 .btn.secondary:focus-visible {
-	box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.12);
+	box-shadow: 0 0 0 3px var(--focus-ring-soft);
 }
 
 .btn.ghost {
@@ -451,11 +484,11 @@ select:focus {
 .btn.danger {
 	background: var(--bad-soft);
 	color: var(--bad);
-	box-shadow: 0 1px 2px rgba(179, 38, 30, 0.08);
+	box-shadow: 0 1px 2px oklch(50% 0.18 27 / 0.16);
 }
 
 .btn.danger:hover:not(:disabled) {
-	background: #f4cdc7;
+	background: var(--bad-soft-hover);
 }
 
 .btn svg {
@@ -486,6 +519,35 @@ select:focus {
 	height: 14px;
 }
 
+.theme-toggle {
+	display: inline-flex;
+	width: 32px;
+	height: 32px;
+	align-items: center;
+	justify-content: center;
+	border-radius: 8px;
+	color: var(--muted);
+	border: 1px solid var(--line);
+	background: var(--surface);
+	transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.theme-toggle:hover {
+	color: var(--ink);
+	border-color: var(--line-strong);
+	background: var(--surface-2);
+}
+
+.theme-toggle:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 3px var(--focus-ring-soft);
+}
+
+.theme-toggle svg {
+	width: 16px;
+	height: 16px;
+}
+
 /* Members */
 
 .members {
@@ -513,7 +575,7 @@ select:focus {
 	align-items: center;
 	justify-content: center;
 	border-radius: 999px;
-	color: #fff;
+	color: oklch(100% 0 0);
 	font-size: 0.7rem;
 	font-weight: 700;
 	letter-spacing: 0.02em;
@@ -573,7 +635,7 @@ select:focus {
 
 .chip:has(input:checked) {
 	background: var(--ink);
-	color: #fff;
+	color: var(--bg);
 	border-color: var(--ink);
 }
 
@@ -588,7 +650,7 @@ select:focus {
 	padding: 6px 12px;
 	border-radius: 999px;
 	background: var(--warn-soft);
-	color: #6b4900;
+	color: var(--warn-ink);
 	font-weight: 600;
 	font-size: 0.85rem;
 	margin-left: auto;

@@ -13,11 +13,25 @@ import Panel from "../components/Panel.astro";
 			<div class="topbar-meta" x-show="stage === 'onboarding'">
 				<span class="dot"></span>
 				<span>Nothing leaves this tab</span>
+				<button class="theme-toggle" type="button"
+					:aria-label="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+					:title="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+					@click="toggleTheme()">
+					<svg x-show="theme === 'light'" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 9.5A5.5 5.5 0 1 1 6.5 2.5a4.5 4.5 0 0 0 7 7Z"/></svg>
+					<svg x-show="theme === 'dark'" x-cloak viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8h1.5M13 8h1.5M3.3 3.3l1.1 1.1M11.6 11.6l1.1 1.1M3.3 12.7l1.1-1.1M11.6 4.4l1.1-1.1"/></svg>
+				</button>
 			</div>
 			<div class="topbar-meta" x-show="stage === 'workspace'" x-cloak>
 				<span class="topbar-group" x-text="groupName || 'Untitled'"></span>
 				<span class="topbar-sep">·</span>
 				<span x-text="countsLabel"></span>
+				<button class="theme-toggle" type="button"
+					:aria-label="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+					:title="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+					@click="toggleTheme()">
+					<svg x-show="theme === 'light'" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 9.5A5.5 5.5 0 1 1 6.5 2.5a4.5 4.5 0 0 0 7 7Z"/></svg>
+					<svg x-show="theme === 'dark'" x-cloak viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8h1.5M13 8h1.5M3.3 3.3l1.1 1.1M11.6 11.6l1.1 1.1M3.3 12.7l1.1-1.1M11.6 4.4l1.1-1.1"/></svg>
+				</button>
 				<button class="btn ghost small" type="button" @click="resetAll()">Reset</button>
 			</div>
 		</header>

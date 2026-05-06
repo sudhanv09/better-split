@@ -22,6 +22,18 @@ type Persisted = {
 type Msg = { text: string; type: "" | "error" | "success"; visible: boolean };
 
 const STORAGE_KEY = "better-split:session:v1";
+const THEME_KEY = "better-split:theme";
+
+type Theme = "light" | "dark";
+
+function readSavedTheme(): Theme {
+	try {
+		const stored = localStorage.getItem(THEME_KEY);
+		if (stored === "dark" || stored === "light") return stored;
+	} catch {}
+	const attr = document.documentElement.getAttribute("data-theme");
+	return attr === "dark" ? "dark" : "light";
+}
 
 function readSavedSession(): Persisted | null {
 	try {
@@ -68,9 +80,19 @@ export default (Alpine: Alpine) => {
 		resumeVisible: false,
 		resumeSnapshot: null as Persisted | null,
 		sessionLoaded: false,
+		theme: "light" as Theme,
 		_msgTimers: {} as Record<string, number>,
 
 		init() {
+			this.theme = readSavedTheme();
+			document.documentElement.setAttribute("data-theme", this.theme);
+			this.$watch("theme", (value: Theme) => {
+				document.documentElement.setAttribute("data-theme", value);
+				try {
+					localStorage.setItem(THEME_KEY, value);
+				} catch {}
+			});
+
 			const saved = readSavedSession();
 			const hasSaved =
 				!!saved &&
@@ -309,6 +331,10 @@ export default (Alpine: Alpine) => {
 
 		continueToWorkspace() {
 			if (this.continueReady) this.stage = "workspace";
+		},
+
+		toggleTheme() {
+			this.theme = this.theme === "dark" ? "light" : "dark";
 		},
 
 		resetAll() {
