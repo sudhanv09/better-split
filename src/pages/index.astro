@@ -4,40 +4,38 @@ import Panel from "../components/Panel.astro";
 ---
 
 <Layout title="Better Split">
-	<div class="shell">
+	<div class="shell" x-data="app" :data-stage="stage" data-stage="onboarding">
 		<header class="topbar">
 			<div class="brand">
 				<span class="brand-mark">B</span>
 				<span>better<span class="slash">/</span>split</span>
 			</div>
-			<div class="topbar-meta onboarding-only">
+			<div class="topbar-meta" x-show="stage === 'onboarding'">
 				<span class="dot"></span>
 				<span>Nothing leaves this tab</span>
 			</div>
-			<div class="topbar-meta workspace-only" hidden>
-				<span class="topbar-group" id="topbar-group">Untitled</span>
+			<div class="topbar-meta" x-show="stage === 'workspace'" x-cloak>
+				<span class="topbar-group" x-text="groupName || 'Untitled'"></span>
 				<span class="topbar-sep">·</span>
-				<span id="topbar-meta-counts">0 members · 0 transactions</span>
-				<button class="btn ghost small" id="reset-all" type="button">Reset</button>
+				<span x-text="countsLabel"></span>
+				<button class="btn ghost small" type="button" @click="resetAll()">Reset</button>
 			</div>
 		</header>
 
-		<div class="welcome onboarding-only">
+		<div class="welcome" x-show="stage === 'onboarding'">
 			<h1>Set up your group.</h1>
-			<p>
-				Name it and add everyone involved. You can edit anything later.
-			</p>
+			<p>Name it and add everyone involved. You can edit anything later.</p>
 		</div>
 
-		<aside class="resume-card" id="resume-card" hidden>
+		<aside class="resume-card" x-show="resumeVisible" x-cloak>
 			<div class="resume-info">
 				<span class="resume-label">Continue last session</span>
-				<strong id="resume-group">Untitled</strong>
-				<span class="resume-meta" id="resume-meta">0 members · 0 transactions</span>
+				<strong x-text="resumeSnapshot?.groupName || 'Untitled group'"></strong>
+				<span class="resume-meta" x-text="resumeCounts"></span>
 			</div>
 			<div class="resume-actions">
-				<button class="btn secondary small" id="resume-dismiss" type="button">Start fresh</button>
-				<button class="btn small" id="resume-confirm" type="button">
+				<button class="btn secondary small" type="button" @click="resumeDismiss()">Start fresh</button>
+				<button class="btn small" type="button" @click="resumeConfirm()">
 					Resume
 					<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h8M7.5 3.5L11 7l-3.5 3.5"/></svg>
 				</button>
@@ -49,736 +47,194 @@ import Panel from "../components/Panel.astro";
 				<Panel title="Group" titleId="group-title">
 					<div class="field">
 						<label class="field-label" for="group-name">Group name</label>
-						<input id="group-name" type="text" placeholder="Weekend in Bali" autocomplete="off" />
+						<input id="group-name" type="text" placeholder="Weekend in Bali" autocomplete="off" x-model="groupName" />
 					</div>
 
-					<form class="inline-add" id="member-form">
+					<form class="inline-add" @submit.prevent="addMember()">
 						<div class="field">
 							<label class="field-label" for="member-name">Add member</label>
-							<input id="member-name" type="text" placeholder="Sarah" autocomplete="off" />
+							<input id="member-name" type="text" placeholder="Sarah" autocomplete="off" x-model="memberNameInput" />
 						</div>
 						<button class="btn" type="submit">Add</button>
 					</form>
 
-					<div class="members" id="member-list"></div>
-					<div class="message" id="member-message" role="status"></div>
+					<div class="members">
+						<template x-if="members.length === 0">
+							<div class="empty">No one in the group yet.</div>
+						</template>
+						<template x-for="m in members" :key="m.id">
+							<div class="member">
+								<span class="avatar" :style="avatarStyle(m.id)" aria-hidden="true" x-text="initialsOf(m.name)"></span>
+								<span class="member-name" x-text="m.name"></span>
+								<button class="icon-btn" type="button" :aria-label="'Remove ' + m.name" title="Remove" @click="removeMember(m.id)">
+									<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 3l8 8M11 3l-8 8"/></svg>
+								</button>
+							</div>
+						</template>
+					</div>
+					<div class="message" role="status" :class="messageClass(memberMessage)" x-text="memberMessage.text"></div>
 				</Panel>
 
-				<button class="btn continue-btn onboarding-only" id="continue-btn" type="button" disabled>
+				<button class="btn continue-btn" type="button"
+					x-show="stage === 'onboarding'"
+					:disabled="!continueReady"
+					@click="continueToWorkspace()">
 					Continue
 					<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h8M7.5 3.5L11 7l-3.5 3.5"/></svg>
 				</button>
-				<p class="continue-hint onboarding-only" id="continue-hint">Enter a group name and at least two members.</p>
+				<p class="continue-hint" x-show="stage === 'onboarding'" x-text="continueHint"></p>
 			</div>
 
-			<div class="col col-form workspace-only" hidden>
+			<div class="col col-form" x-show="stage === 'workspace'" x-cloak>
 				<Panel title="Add expense" titleId="expense-title">
-					<form id="expense-form" style="display: grid; gap: 14px;">
+					<form @submit.prevent="submitExpense()" style="display: grid; gap: 14px;">
 						<div class="field">
 							<label class="field-label" for="expense-description">Description</label>
-							<input id="expense-description" type="text" placeholder="Dinner, cab, groceries" autocomplete="off" />
+							<input id="expense-description" type="text" placeholder="Dinner, cab, groceries" autocomplete="off" x-model="expenseDescription" />
 						</div>
 
 						<div class="field">
 							<span class="field-label">Who paid</span>
-							<div id="payer-rows" style="display: grid; gap: 8px;"></div>
+							<div style="display: grid; gap: 8px;">
+								<template x-if="members.length === 0">
+									<div class="empty">Add members to record an expense.</div>
+								</template>
+								<template x-for="row in payerRows" :key="row.id">
+									<div class="payer-row">
+										<select name="payer" aria-label="Payer" x-model="row.memberId">
+											<template x-for="m in members" :key="m.id">
+												<option :value="m.id" x-text="m.name"></option>
+											</template>
+										</select>
+										<input name="amount" type="number" min="0" step="0.01" placeholder="0.00" inputmode="decimal" aria-label="Amount" x-model="row.amount" />
+										<button class="icon-btn" type="button" aria-label="Remove payer row" title="Remove" @click="removePayerRow(row.id)">
+											<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 3l8 8M11 3l-8 8"/></svg>
+										</button>
+									</div>
+								</template>
+							</div>
 							<div class="row" style="margin-top: 4px;">
-								<button class="btn ghost" id="add-payer" type="button">+ Add payer</button>
-								<span class="total-pill">Paid <span id="paid-total">0.00</span></span>
+								<button class="btn ghost" type="button" :disabled="members.length === 0" @click="addPayerRow()">+ Add payer</button>
+								<span class="total-pill">Paid <span x-text="paidTotalDisplay">0.00</span></span>
 							</div>
 						</div>
 
 						<div class="field">
 							<span class="field-label">Split equally between</span>
-							<div class="split-options" id="split-options"></div>
+							<div class="split-options">
+								<template x-if="members.length === 0">
+									<div class="empty">Add members to choose who shares this.</div>
+								</template>
+								<template x-for="m in members" :key="m.id">
+									<label class="chip">
+										<input type="checkbox" :value="m.id" x-model="selectedSplitIds" />
+										<span class="avatar" :style="avatarStyle(m.id)" aria-hidden="true" x-text="initialsOf(m.name)"></span>
+										<span x-text="m.name"></span>
+									</label>
+								</template>
+							</div>
 						</div>
 
 						<div class="form-actions">
-							<button class="btn secondary" id="select-all" type="button">Everyone</button>
-							<button class="btn grow" id="save-expense" type="submit">
+							<button class="btn secondary" type="button" :disabled="members.length === 0" @click="selectAllSplit()">Everyone</button>
+							<button class="btn grow" type="submit" :disabled="members.length < 2">
 								Add transaction
 								<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h8M7.5 3.5L11 7l-3.5 3.5"/></svg>
 							</button>
 						</div>
 
-						<div class="message" id="expense-message" role="status"></div>
+						<div class="message" role="status" :class="messageClass(expenseMessage)" x-text="expenseMessage.text"></div>
 					</form>
 				</Panel>
 			</div>
 
-			<div class="col col-summary workspace-only" hidden>
+			<div class="col col-summary" x-show="stage === 'workspace'" x-cloak>
 				<Panel title="Per-person share" titleId="balances-title">
-					<div id="balances"></div>
+					<template x-if="members.length === 0">
+						<div class="empty">Balances appear once members are added.</div>
+					</template>
+					<template x-if="members.length > 0">
+						<div class="balance-list">
+							<template x-for="b in balances" :key="b.memberId">
+								<div class="balance-row">
+									<div class="balance-name">
+										<span class="avatar" :style="avatarStyle(b.memberId)" aria-hidden="true" x-text="initialsOf(memberName(b.memberId))"></span>
+										<span x-text="memberName(b.memberId)"></span>
+									</div>
+									<div class="balance-bar" aria-hidden="true">
+										<div class="center"></div>
+										<template x-if="b.net !== 0">
+											<div class="fill" :class="balanceClass(b.net)" :style="`width: ${balancePct(b.net)}%;`"></div>
+										</template>
+									</div>
+									<div class="balance-net" :class="balanceClass(b.net)">
+										<span x-text="balanceSign(b.net) + money(Math.abs(b.net))"></span>
+									</div>
+								</div>
+							</template>
+						</div>
+					</template>
 				</Panel>
 
 				<Panel title="Settle up" titleId="settle-title">
-					<div id="settlements"></div>
+					<template x-if="expenses.length === 0">
+						<div class="empty">Add transactions to settle.</div>
+					</template>
+					<template x-if="expenses.length > 0 && settlements.length === 0">
+						<div class="empty">All settled — nobody owes anyone.</div>
+					</template>
+					<template x-if="expenses.length > 0 && settlements.length > 0">
+						<div class="settlements">
+							<template x-for="s in settlements" :key="s.from + '-' + s.to + '-' + s.amount">
+								<div class="settle">
+									<div class="who">
+										<span class="avatar" :style="avatarStyle(s.from)" aria-hidden="true" x-text="initialsOf(memberName(s.from))"></span>
+										<span class="name" x-text="memberName(s.from)"></span>
+									</div>
+									<span class="arrow" aria-hidden="true">→</span>
+									<div class="who">
+										<span class="avatar" :style="avatarStyle(s.to)" aria-hidden="true" x-text="initialsOf(memberName(s.to))"></span>
+										<span class="name" x-text="memberName(s.to)"></span>
+									</div>
+									<span class="amount" x-text="money(s.amount)"></span>
+								</div>
+							</template>
+						</div>
+					</template>
 				</Panel>
 
-				<Panel title="Transactions" titleId="transactions-title" count="0">
-					<div class="txn-list" id="transaction-list"></div>
+				<Panel title="Transactions" titleId="transactions-title">
+					<span slot="count" class="count" x-text="expenses.length">0</span>
+					<div class="txn-list">
+						<template x-if="expenses.length === 0">
+							<div class="empty">No transactions yet.</div>
+						</template>
+						<template x-for="expense in expenses" :key="expense.id">
+							<article class="txn">
+								<h3 class="txn-title" x-text="expense.description"></h3>
+								<span class="txn-amount" x-text="money(expense.totalCents)"></span>
+								<div class="txn-meta">
+									<template x-for="(p, i) in expense.payers" :key="i">
+										<span>
+											<span class="sep" x-show="i > 0">·</span>
+											<span><strong x-text="memberName(p.memberId)"></strong> paid <span x-text="money(p.amountCents)"></span></span>
+										</span>
+									</template>
+									<span class="sep">·</span>
+									<span>split <span x-text="expense.splitMemberIds.map((id) => memberName(id)).join(', ')"></span></span>
+								</div>
+								<div class="txn-actions">
+									<button class="btn secondary small" type="button" @click="deleteExpense(expense.id)">Delete</button>
+								</div>
+							</article>
+						</template>
+					</div>
 				</Panel>
 			</div>
 		</main>
 	</div>
 
-	<script>
-		import {
-			calculateBalances,
-			calculateSettlements,
-			createId,
-			formatMoney,
-			parseAmountCents,
-			initials,
-			avatarHue,
-			type Expense,
-			type Member,
-		} from "../lib/split";
-
-		type PayerDraft = { id: string; memberId: string; amount: string };
-		type Stage = "onboarding" | "workspace";
-
-		const state: {
-			stage: Stage;
-			groupName: string;
-			members: Member[];
-			expenses: Expense[];
-		} = {
-			stage: "onboarding",
-			groupName: "",
-			members: [],
-			expenses: [],
-		};
-
-		let payerRows: PayerDraft[] = [createPayerRow()];
-		let selectedSplitIds = new Set<string>();
-
-		const $ = <T extends Element = HTMLElement>(s: string) =>
-			document.querySelector(s) as T;
-
-		const groupNameInput = $<HTMLInputElement>("#group-name");
-		const topbarGroup = $("#topbar-group");
-		const topbarCounts = $("#topbar-meta-counts");
-		const memberForm = $<HTMLFormElement>("#member-form");
-		const memberNameInput = $<HTMLInputElement>("#member-name");
-		const memberList = $("#member-list");
-		const memberMessage = $("#member-message");
-		const continueBtn = $<HTMLButtonElement>("#continue-btn");
-		const continueHint = $("#continue-hint");
-		const expenseForm = $<HTMLFormElement>("#expense-form");
-		const expenseDescription = $<HTMLInputElement>("#expense-description");
-		const payerRowsContainer = $("#payer-rows");
-		const splitOptions = $("#split-options");
-		const paidTotal = $("#paid-total");
-		const expenseMessage = $("#expense-message");
-		const transactionList = $("#transaction-list");
-		const balancesContainer = $("#balances");
-		const settlementsContainer = $("#settlements");
-		const addPayerButton = $<HTMLButtonElement>("#add-payer");
-		const selectAllButton = $<HTMLButtonElement>("#select-all");
-		const resetAllButton = $<HTMLButtonElement>("#reset-all");
-		const saveExpenseButton = $<HTMLButtonElement>("#save-expense");
-		const txnCountEl = document.querySelector<HTMLElement>(
-			"#transactions-title [data-panel-count]",
-		);
-		const onboardingEls = document.querySelectorAll<HTMLElement>(".onboarding-only");
-		const workspaceEls = document.querySelectorAll<HTMLElement>(".workspace-only");
-		const resumeCard = $<HTMLElement>("#resume-card");
-		const resumeGroup = $("#resume-group");
-		const resumeMeta = $("#resume-meta");
-		const resumeConfirm = $<HTMLButtonElement>("#resume-confirm");
-		const resumeDismiss = $<HTMLButtonElement>("#resume-dismiss");
-
-		const STORAGE_KEY = "better-split:session:v1";
-
-		type Persisted = {
-			stage: Stage;
-			groupName: string;
-			members: Member[];
-			expenses: Expense[];
-		};
-
-		let sessionLoaded = false;
-
-		function persist() {
-			if (
-				!state.groupName &&
-				state.members.length === 0 &&
-				state.expenses.length === 0
-			) {
-				try { localStorage.removeItem(STORAGE_KEY); } catch {}
-				return;
-			}
-			try {
-				const data: Persisted = {
-					stage: state.stage,
-					groupName: state.groupName,
-					members: state.members,
-					expenses: state.expenses,
-				};
-				localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-			} catch {}
-		}
-
-		function readSavedSession(): Persisted | null {
-			try {
-				const raw = localStorage.getItem(STORAGE_KEY);
-				if (!raw) return null;
-				const data = JSON.parse(raw) as Partial<Persisted> | null;
-				if (
-					!data ||
-					typeof data.groupName !== "string" ||
-					!Array.isArray(data.members) ||
-					!Array.isArray(data.expenses)
-				) {
-					return null;
-				}
-				const stage: Stage = data.stage === "workspace" ? "workspace" : "onboarding";
-				return {
-					stage,
-					groupName: data.groupName,
-					members: data.members as Member[],
-					expenses: data.expenses as Expense[],
-				};
-			} catch {
-				return null;
-			}
-		}
-
-		function hydrate(saved: Persisted) {
-			state.groupName = saved.groupName;
-			state.members = saved.members;
-			state.expenses = saved.expenses;
-			groupNameInput.value = saved.groupName;
-			selectedSplitIds = new Set(saved.members.map((m) => m.id));
-			payerRows = [createPayerRow(saved.members[0]?.id || "")];
-		}
-
-		function createPayerRow(memberId = "", amount = ""): PayerDraft {
-			return { id: createId(), memberId, amount };
-		}
-
-		function defaultPayerId() {
-			return state.members[0]?.id || "";
-		}
-
-		function getMember(id: string) {
-			return state.members.find((m) => m.id === id);
-		}
-
-		function memberName(id: string) {
-			return getMember(id)?.name || "Unknown";
-		}
-
-		function escapeHtml(value: string) {
-			return value
-				.replaceAll("&", "&amp;")
-				.replaceAll("<", "&lt;")
-				.replaceAll(">", "&gt;")
-				.replaceAll('"', "&quot;")
-				.replaceAll("'", "&#039;");
-		}
-
-		const messageTimers = new WeakMap<Element, number>();
-
-		function showMessage(el: Element, text: string, type: "error" | "success") {
-			el.textContent = text;
-			el.className = `message show ${type}`;
-			const prev = messageTimers.get(el);
-			if (prev) clearTimeout(prev);
-			const ms = type === "error" ? 3500 : 2200;
-			const timer = window.setTimeout(() => {
-				el.className = "message";
-				messageTimers.delete(el);
-			}, ms);
-			messageTimers.set(el, timer);
-		}
-
-		function clearMessage(el: Element) {
-			const prev = messageTimers.get(el);
-			if (prev) clearTimeout(prev);
-			messageTimers.delete(el);
-			el.textContent = "";
-			el.className = "message";
-		}
-
-		function avatarStyle(id: string) {
-			return `background: hsl(${avatarHue(id)} 65% 45%);`;
-		}
-
-		function avatarHtml(member: Member) {
-			return `<span class="avatar" style="${avatarStyle(member.id)}" aria-hidden="true">${escapeHtml(initials(member.name))}</span>`;
-		}
-
-		function ensureDraftDefaults() {
-			const ids = new Set(state.members.map((m) => m.id));
-			selectedSplitIds = new Set([...selectedSplitIds].filter((id) => ids.has(id)));
-			if (selectedSplitIds.size === 0) {
-				selectedSplitIds = new Set(state.members.map((m) => m.id));
-			}
-			payerRows = payerRows.map((row) =>
-				ids.has(row.memberId) ? row : { ...row, memberId: defaultPayerId() },
-			);
-		}
-
-		function syncPayerFromEvent(event: Event) {
-			const field = (event.target as Element)?.closest<HTMLElement>("[data-payer-row]");
-			if (!field) return;
-			const row = payerRows.find((r) => r.id === field.dataset.payerRow);
-			if (!row) return;
-			const input = field as HTMLInputElement | HTMLSelectElement;
-			if (input.name === "payer") row.memberId = input.value;
-			if (input.name === "amount") row.amount = input.value;
-			renderPaidTotal();
-		}
-
-		function collectPayers() {
-			const totals = new Map<string, number>();
-			for (const row of payerRows) {
-				const hasInput = row.memberId || row.amount.trim();
-				if (!hasInput) continue;
-				if (!row.memberId) return { error: "Choose who paid for each payer row." };
-				const cents = parseAmountCents(row.amount);
-				if (!cents) return { error: "Enter a positive amount for each payer row." };
-				totals.set(row.memberId, (totals.get(row.memberId) || 0) + cents);
-			}
-			const items = [...totals.entries()].map(([memberId, amountCents]) => ({
-				memberId,
-				amountCents,
-			}));
-			if (items.length === 0) return { error: "Add at least one payer amount." };
-			return { items };
-		}
-
-		function draftTotalCents() {
-			return payerRows.reduce(
-				(t, r) => t + (parseAmountCents(r.amount) || 0),
-				0,
-			);
-		}
-
-		function setStage(next: Stage) {
-			state.stage = next;
-			document.body.dataset.stage = next;
-			for (const el of onboardingEls) el.hidden = next !== "onboarding";
-			for (const el of workspaceEls) el.hidden = next !== "workspace";
-		}
-
-		// Render functions
-
-		function renderTopbar() {
-			topbarGroup.textContent = state.groupName || "Untitled";
-			const m = state.members.length;
-			const t = state.expenses.length;
-			topbarCounts.textContent = `${m} member${m === 1 ? "" : "s"} · ${t} transaction${t === 1 ? "" : "s"}`;
-		}
-
-		function renderContinue() {
-			const ready = state.groupName.length > 0 && state.members.length >= 2;
-			continueBtn.disabled = !ready;
-			if (state.members.length < 2) {
-				continueHint.textContent = "Add at least two members to split with.";
-			} else if (state.groupName.length === 0) {
-				continueHint.textContent = "Give the group a name.";
-			} else {
-				continueHint.textContent = "Ready when you are.";
-			}
-		}
-
-		function renderMembers() {
-			if (state.members.length === 0) {
-				memberList.innerHTML = '<div class="empty">No one in the group yet.</div>';
-				return;
-			}
-			memberList.innerHTML = state.members
-				.map(
-					(m) => `
-					<div class="member">
-						${avatarHtml(m)}
-						<span class="member-name">${escapeHtml(m.name)}</span>
-						<button class="icon-btn" type="button" data-remove-member="${m.id}" aria-label="Remove ${escapeHtml(m.name)}" title="Remove">
-							<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 3l8 8M11 3l-8 8"/></svg>
-						</button>
-					</div>
-				`,
-				)
-				.join("");
-		}
-
-		function renderPayerRows() {
-			if (state.members.length === 0) {
-				payerRowsContainer.innerHTML = '<div class="empty">Add members to record an expense.</div>';
-				return;
-			}
-			payerRowsContainer.innerHTML = payerRows
-				.map((row) => {
-					const options = state.members
-						.map(
-							(m) =>
-								`<option value="${m.id}" ${m.id === row.memberId ? "selected" : ""}>${escapeHtml(m.name)}</option>`,
-						)
-						.join("");
-					return `
-						<div class="payer-row">
-							<select name="payer" data-payer-row="${row.id}" aria-label="Payer">${options}</select>
-							<input name="amount" data-payer-row="${row.id}" type="number" min="0" step="0.01" placeholder="0.00" value="${escapeHtml(row.amount)}" aria-label="Amount" inputmode="decimal" />
-							<button class="icon-btn" type="button" data-remove-payer-row="${row.id}" aria-label="Remove payer row" title="Remove">
-								<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 3l8 8M11 3l-8 8"/></svg>
-							</button>
-						</div>
-					`;
-				})
-				.join("");
-		}
-
-		function renderSplitOptions() {
-			if (state.members.length === 0) {
-				splitOptions.innerHTML = '<div class="empty">Add members to choose who shares this.</div>';
-				return;
-			}
-			splitOptions.innerHTML = state.members
-				.map((m) => {
-					const checked = selectedSplitIds.has(m.id) ? "checked" : "";
-					return `
-						<label class="chip">
-							<input type="checkbox" data-split-member="${m.id}" ${checked} />
-							${avatarHtml(m)}
-							${escapeHtml(m.name)}
-						</label>
-					`;
-				})
-				.join("");
-		}
-
-		function renderPaidTotal() {
-			paidTotal.textContent = formatMoney(draftTotalCents());
-		}
-
-		function renderTransactions() {
-			if (txnCountEl) txnCountEl.textContent = String(state.expenses.length);
-			if (state.expenses.length === 0) {
-				transactionList.innerHTML = '<div class="empty">No transactions yet.</div>';
-				return;
-			}
-			transactionList.innerHTML = state.expenses
-				.map((expense) => {
-					const payers = expense.payers
-						.map(
-							(p) =>
-								`<span><strong>${escapeHtml(memberName(p.memberId))}</strong> paid ${formatMoney(p.amountCents)}</span>`,
-						)
-						.join('<span class="sep">·</span>');
-					const split = expense.splitMemberIds
-						.map((id) => escapeHtml(memberName(id)))
-						.join(", ");
-					return `
-						<article class="txn">
-							<h3 class="txn-title">${escapeHtml(expense.description)}</h3>
-							<span class="txn-amount">${formatMoney(expense.totalCents)}</span>
-							<div class="txn-meta">
-								${payers}
-								<span class="sep">·</span>
-								<span>split ${escapeHtml(split)}</span>
-							</div>
-							<div class="txn-actions">
-								<button class="btn secondary small" type="button" data-delete-expense="${expense.id}">Delete</button>
-							</div>
-						</article>
-					`;
-				})
-				.join("");
-		}
-
-		function renderBalances() {
-			const balances = calculateBalances(state.members, state.expenses);
-			if (state.members.length === 0) {
-				balancesContainer.innerHTML = '<div class="empty">Balances appear once members are added.</div>';
-				return balances;
-			}
-			const max = Math.max(1, ...balances.map((b) => Math.abs(b.net)));
-			balancesContainer.innerHTML = `
-				<div class="balance-list">
-					${balances
-						.map((b) => {
-							const member = getMember(b.memberId);
-							if (!member) return "";
-							const cls = b.net > 0 ? "positive" : b.net < 0 ? "negative" : "zero";
-							const sign = b.net > 0 ? "+" : b.net < 0 ? "−" : "";
-							const pct = Math.round((Math.abs(b.net) / max) * 50);
-							const fillStyle = b.net !== 0 ? `width: ${pct}%;` : "width: 0;";
-							return `
-								<div class="balance-row">
-									<div class="balance-name">
-										${avatarHtml(member)}
-										<span>${escapeHtml(member.name)}</span>
-									</div>
-									<div class="balance-bar" aria-hidden="true">
-										<div class="center"></div>
-										${b.net !== 0 ? `<div class="fill ${cls}" style="${fillStyle}"></div>` : ""}
-									</div>
-									<div class="balance-net ${cls}">${sign}${formatMoney(Math.abs(b.net))}</div>
-								</div>
-							`;
-						})
-						.join("")}
-				</div>
-			`;
-			return balances;
-		}
-
-		function renderSettlements(balances: ReturnType<typeof calculateBalances>) {
-			if (state.expenses.length === 0) {
-				settlementsContainer.innerHTML = '<div class="empty">Add transactions to settle.</div>';
-				return;
-			}
-			const settlements = calculateSettlements(balances);
-			if (settlements.length === 0) {
-				settlementsContainer.innerHTML = '<div class="empty">All settled — nobody owes anyone.</div>';
-				return;
-			}
-			settlementsContainer.innerHTML = `
-				<div class="settlements">
-					${settlements
-						.map((s) => {
-							const from = getMember(s.from);
-							const to = getMember(s.to);
-							if (!from || !to) return "";
-							return `
-								<div class="settle">
-									<div class="who">
-										${avatarHtml(from)}
-										<span class="name">${escapeHtml(from.name)}</span>
-									</div>
-									<span class="arrow" aria-hidden="true">→</span>
-									<div class="who">
-										${avatarHtml(to)}
-										<span class="name">${escapeHtml(to.name)}</span>
-									</div>
-									<span class="amount">${formatMoney(s.amount)}</span>
-								</div>
-							`;
-						})
-						.join("")}
-				</div>
-			`;
-		}
-
-		function renderControls() {
-			const enough = state.members.length >= 2;
-			addPayerButton.disabled = state.members.length === 0;
-			selectAllButton.disabled = state.members.length === 0;
-			saveExpenseButton.disabled = !enough;
-		}
-
-		function render() {
-			renderTopbar();
-			renderContinue();
-			renderMembers();
-			renderPayerRows();
-			renderSplitOptions();
-			renderPaidTotal();
-			renderTransactions();
-			const balances = renderBalances();
-			renderSettlements(balances);
-			renderControls();
-			if (sessionLoaded) persist();
-		}
-
-		function showResumeCard(saved: Persisted) {
-			resumeGroup.textContent = saved.groupName || "Untitled group";
-			const m = saved.members.length;
-			const t = saved.expenses.length;
-			resumeMeta.textContent = `${m} member${m === 1 ? "" : "s"} · ${t} transaction${t === 1 ? "" : "s"}`;
-			resumeCard.hidden = false;
-		}
-
-		function hideResumeCard() {
-			resumeCard.hidden = true;
-		}
-
-		// Event wiring
-
-		groupNameInput.addEventListener("input", () => {
-			state.groupName = groupNameInput.value.trim();
-			renderTopbar();
-			renderContinue();
-		});
-
-		memberForm.addEventListener("submit", (event) => {
-			event.preventDefault();
-			const name = memberNameInput.value.trim();
-			if (!name) {
-				showMessage(memberMessage, "Enter a member name.", "error");
-				return;
-			}
-			if (state.members.some((m) => m.name.toLowerCase() === name.toLowerCase())) {
-				showMessage(memberMessage, "That member already exists.", "error");
-				return;
-			}
-			const member: Member = { id: createId(), name };
-			state.members.push(member);
-			selectedSplitIds.add(member.id);
-			memberNameInput.value = "";
-			memberNameInput.focus();
-			showMessage(memberMessage, `${name} added.`, "success");
-			ensureDraftDefaults();
-			render();
-		});
-
-		memberList.addEventListener("click", (event) => {
-			const button = (event.target as Element)?.closest<HTMLElement>("[data-remove-member]");
-			if (!button) return;
-			const memberId = button.dataset.removeMember!;
-			const member = getMember(memberId);
-			if (!member) return;
-			const used = state.expenses.some(
-				(e) =>
-					e.splitMemberIds.includes(memberId) ||
-					e.payers.some((p) => p.memberId === memberId),
-			);
-			if (used) {
-				showMessage(memberMessage, "Delete that member's transactions first.", "error");
-				return;
-			}
-			state.members = state.members.filter((m) => m.id !== memberId);
-			selectedSplitIds.delete(memberId);
-			payerRows = payerRows.map((r) =>
-				r.memberId === memberId ? { ...r, memberId: "" } : r,
-			);
-			showMessage(memberMessage, `${member.name} removed.`, "success");
-			ensureDraftDefaults();
-			render();
-		});
-
-		continueBtn.addEventListener("click", () => {
-			if (continueBtn.disabled) return;
-			setStage("workspace");
-		});
-
-		payerRowsContainer.addEventListener("input", syncPayerFromEvent);
-		payerRowsContainer.addEventListener("change", syncPayerFromEvent);
-
-		payerRowsContainer.addEventListener("click", (event) => {
-			const button = (event.target as Element)?.closest<HTMLElement>("[data-remove-payer-row]");
-			if (!button) return;
-			payerRows = payerRows.filter((r) => r.id !== button.dataset.removePayerRow);
-			if (payerRows.length === 0) payerRows = [createPayerRow()];
-			renderPayerRows();
-			renderPaidTotal();
-		});
-
-		addPayerButton.addEventListener("click", () => {
-			payerRows.push(createPayerRow(defaultPayerId()));
-			renderPayerRows();
-			renderPaidTotal();
-		});
-
-		splitOptions.addEventListener("change", (event) => {
-			const cb = (event.target as Element)?.closest<HTMLInputElement>("[data-split-member]");
-			if (!cb) return;
-			if (cb.checked) selectedSplitIds.add(cb.dataset.splitMember!);
-			else selectedSplitIds.delete(cb.dataset.splitMember!);
-		});
-
-		selectAllButton.addEventListener("click", () => {
-			selectedSplitIds = new Set(state.members.map((m) => m.id));
-			renderSplitOptions();
-		});
-
-		resetAllButton.addEventListener("click", () => {
-			state.groupName = "";
-			state.members = [];
-			state.expenses = [];
-			payerRows = [createPayerRow()];
-			selectedSplitIds = new Set();
-			groupNameInput.value = "";
-			expenseDescription.value = "";
-			clearMessage(memberMessage);
-			clearMessage(expenseMessage);
-			hideResumeCard();
-			setStage("onboarding");
-			try { localStorage.removeItem(STORAGE_KEY); } catch {}
-			render();
-		});
-
-		resumeConfirm.addEventListener("click", () => {
-			const saved = readSavedSession();
-			if (!saved) {
-				hideResumeCard();
-				sessionLoaded = true;
-				return;
-			}
-			hydrate(saved);
-			hideResumeCard();
-			sessionLoaded = true;
-			setStage(saved.stage === "workspace" ? "workspace" : "onboarding");
-			render();
-		});
-
-		resumeDismiss.addEventListener("click", () => {
-			try { localStorage.removeItem(STORAGE_KEY); } catch {}
-			hideResumeCard();
-			sessionLoaded = true;
-			memberNameInput.focus();
-		});
-
-		expenseForm.addEventListener("submit", (event) => {
-			event.preventDefault();
-			if (state.members.length < 2) {
-				showMessage(expenseMessage, "Add at least two members first.", "error");
-				return;
-			}
-			const payers = collectPayers();
-			if ("error" in payers) {
-				showMessage(expenseMessage, payers.error, "error");
-				return;
-			}
-			const splitMemberIds = state.members
-				.map((m) => m.id)
-				.filter((id) => selectedSplitIds.has(id));
-			if (splitMemberIds.length === 0) {
-				showMessage(expenseMessage, "Choose at least one person to split with.", "error");
-				return;
-			}
-			const totalCents = payers.items.reduce((t, p) => t + p.amountCents, 0);
-			state.expenses.unshift({
-				id: createId(),
-				description: expenseDescription.value.trim() || "Untitled expense",
-				payers: payers.items,
-				splitMemberIds,
-				totalCents,
-				createdAt: new Date().toISOString(),
-			});
-			expenseDescription.value = "";
-			payerRows = [createPayerRow(defaultPayerId())];
-			selectedSplitIds = new Set(state.members.map((m) => m.id));
-			showMessage(expenseMessage, "Transaction added.", "success");
-			render();
-		});
-
-		transactionList.addEventListener("click", (event) => {
-			const button = (event.target as Element)?.closest<HTMLElement>("[data-delete-expense]");
-			if (!button) return;
-			state.expenses = state.expenses.filter(
-				(e) => e.id !== button.dataset.deleteExpense,
-			);
-			render();
-		});
-
-		const saved = readSavedSession();
-		const hasSaved =
-			!!saved &&
-			(saved.groupName.length > 0 ||
-				saved.members.length > 0 ||
-				saved.expenses.length > 0);
-
-		if (hasSaved && saved) {
-			showResumeCard(saved);
-			setStage("onboarding");
-		} else {
-			sessionLoaded = true;
-			setStage("onboarding");
-		}
-		render();
-	</script>
+	<style is:global>
+		[x-cloak] { display: none !important; }
+	</style>
 </Layout>

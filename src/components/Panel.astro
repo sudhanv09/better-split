@@ -13,7 +13,9 @@ const { title, desc, count, titleId } = Astro.props;
 	<div class="panel-header">
 		<h2 class="panel-title" id={titleId}>
 			{title}
-			{count !== undefined && <span class="count" data-panel-count>{count}</span>}
+			<slot name="count">
+				{count !== undefined && <span class="count" data-panel-count>{count}</span>}
+			</slot>
 		</h2>
 	</div>
 	{desc && <p class="panel-desc" style="padding: 0 18px;">{desc}</p>}
